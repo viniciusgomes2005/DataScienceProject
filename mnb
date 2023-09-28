@@ -1,0 +1,89 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import re
+from unidecode import unidecode
+print('Esperamos trabalhar no diretório')
+print(os.getcwd())
+train = pd.read_excel('dados_treino.xlsx')
+train.head(5)
+train['Mensagem']=train['Mensagem'].astype('category')
+test = pd.read_excel('dados_teste.xlsx')
+test.head(5)
+def cleanup(text):
+    text=text.lower()
+    punctuation = '[´"!-.:?;$''<>]' # Note que os sinais [] são delimitadores de um conjunto.
+    pattern = re.compile(punctuation)
+    text_subbed = re.sub(pattern, '', text)
+    return text_subbed
+
+def remover_acentos(texto):
+    # Use unidecode para remover acentos e converter caracteres especiais para caracteres ASCII
+    texto_sem_acentos = unidecode(texto)
+    return texto_sem_acentos
+def df0(df):
+    df['Mensagem'] = df['Mensagem'].apply(cleanup)
+    df['Mensagem'] = df['Mensagem'].apply(remover_acentos)
+    novo_df = pd.concat([df[['Mensagem']], df[['Target (Loja e Sistema, Entrega,Conteudo)']]], axis=1)
+    return novo_df
+train=df0(train)
+train['Mensagem']=train['Mensagem'].astype('category')
+df_Loja_Sistema=train.loc[train["Target (Loja e Sistema, Entrega,Conteudo)"]=='Loja e Sistema']
+df_Entrega=train.loc[train["Target (Loja e Sistema, Entrega,Conteudo)"]=='Entrega']
+df_Conteudo=train.loc[train["Target (Loja e Sistema, Entrega,Conteudo)"]=='Conteúdo do Livro']
+quant_loja=len(df_Loja_Sistema)
+quant_Conteudo=len(df_Conteudo)
+quant_Entrega=len(df_Entrega)
+def ll(lista):
+    todas_as_frases=lista["Mensagem"]
+    todas_as_palavras = []
+    for i in todas_as_frases:
+        frase=[]
+        x=i.split(" ")
+        for u in x:
+            if u not in frase:
+                frase.append(u)
+        for d in frase:
+            todas_as_palavras.append(d)
+    todas_as_palavrasSeries=pd.Series(todas_as_palavras)
+    return todas_as_palavrasSeries.value_counts()
+quant_palavras_Entrega= ll(df_Entrega)
+quant_palavras_Conteudo= ll(df_Conteudo)
+quant_palavras_Loja= ll(df_Loja_Sistema)
+quantidade_total=quant_loja + quant_Conteudo + quant_Entrega
+def laplace(x,q):
+    return (x+1)/(q+quantidade_total)
+frase=str(input('frase:'))
+frase=cleanup(frase)
+frase=remover_acentos(frase)
+frase=frase.lower()
+palavras=frase.split(' ')
+prob_Loja_Sistema=1
+prob_Entrega=1
+prob_Conteudo=1
+for palavra in palavras:
+    if palavra in quant_palavras_Loja:
+        prob_Loja_Sistema*=(quant_palavras_Loja[palavra]/quant_loja)
+    else:
+        prob_Loja_Sistema*=laplace(0,quant_loja)
+for palavra in palavras:
+    if palavra in quant_palavras_Entrega:
+        prob_Entrega*=(quant_palavras_Entrega[palavra]/quant_Entrega)
+    else:
+        prob_Entrega*=laplace(0,quant_Entrega)
+for palavra in palavras:
+    if palavra in quant_palavras_Conteudo:
+        prob_Conteudo*=(quant_palavras_Conteudo[palavra]/quant_Conteudo)
+    else:
+        prob_Conteudo*=laplace(0,quant_Conteudo)
+print(prob_Conteudo)
+print(prob_Entrega)
+print(prob_Loja_Sistema)
+maior_prob=max(prob_Conteudo , prob_Entrega , prob_Loja_Sistema)
+if maior_prob==prob_Conteudo:
+    print("Conteúdo do Livro")
+elif maior_prob==prob_Entrega:
+    print("Entrega")
+elif maior_prob==prob_Loja_Sistema:
+    print("Loja e Sistema")
